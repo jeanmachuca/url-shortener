@@ -1,0 +1,116 @@
+---
+const error = Astro.url.searchParams.get('error');
+---
+
+<form id="shorten-form" action="/api/shorten" method="post" novalidate>
+  <label class="row">
+    <span class="sr-only">Long URL</span>
+    <input
+      id="url"
+      name="url"
+      type="text"
+      inputmode="url"
+      placeholder="https://example.com/very/long/path?with=query"
+      autocomplete="off"
+      required
+    />
+  </label>
+  <label class="row custom">
+    <span class="sr-only">Custom slug (optional)</span>
+    <span class="prefix">/s/</span>
+    <input
+      id="slug"
+      name="slug"
+      type="text"
+      placeholder="custom-slug"
+      maxlength="32"
+      pattern="[a-zA-Z0-9]{1,32}"
+      autocomplete="off"
+    />
+  </label>
+  <button type="submit">Shorten</button>
+  {error && <p class="note error">{error}</p>}
+  <p id="result" class="note" role="status"></p>
+</form>
+
+<script>
+  const form = document.getElementById('shorten-form') as HTMLFormElement | null;
+  const result = document.getElementById('result');
+
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!result) return;
+    result.textContent = 'Shortening\u2026';
+    const body = new URLSearchParams();
+    new FormData(form).forEach((value, key) => body.append(key, String(value)));
+    try {
+      const res = await fetch('/api/shorten', { method: 'POST', body });
+      const data = (await res.json()) as { error?: string; shortUrl?: string };
+      if (!res.ok || !data.shortUrl) throw new Error(data.error ?? 'Failed to shorten.');
+      result.replaceChildren();
+      const link = document.createElement('a');
+      link.href = data.shortUrl;
+      link.textContent = data.shortUrl;
+      link.addEventListener('click', () => navigator.clipboard?.writeText(data.shortUrl!));
+      result.appendChild(link);
+      const copy = document.createElement('button');
+      copy.type = 'button';
+      copy.textContent = 'Copy';
+      copy.addEventListener('click', async () => {
+        await navigator.clipboard?.writeText(data.shortUrl!);
+        copy.textContent = 'Copied';
+        setTimeout(() => (copy.textContent = 'Copy'), 1500);
+      });
+      result.appendChild(copy);
+    } catch (err) {
+      result.textContent = err instanceof Error ? err.message : 'Failed to shorten.';
+    }
+  });
+</script>
+
+<style>
+  .row {
+    display: block;
+  }
+  .custom {
+    display: flex;
+    align-items: stretch;
+  }
+  .prefix {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.6rem 0.7rem;
+    background: #1e293b;
+    color: #94a3b8;
+    border-radius: 0.5rem 0 0 0.5rem;
+    font-family: var(--mono);
+    font-size: 0.9rem;
+  }
+  .custom input {
+    border-radius: 0 0.5rem 0.5rem 0;
+  }
+  .note {
+    margin-top: 0.9rem;
+    font-size: 0.95rem;
+    word-break: break-all;
+  }
+  .note a {
+    color: #38bdf8;
+    margin-right: 0.75rem;
+  }
+  .note button {
+    padding: 0.15rem 0.6rem;
+    font-size: 0.8rem;
+  }
+  .error {
+    color: #f87171;
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+</style>
